@@ -165,7 +165,84 @@ print("Chat response:", chat_response)
 print("Chat response content:", chat_response.choices[0].message.content)
 ```
 
-### 2.5 Multi-turn Conversation
+### 2.5 High frame rate and long video understanding mode
+
+The `MiniCPM-V4.5` model supports efficient high frame rate and long video understanding.
+
+**Environment variables need to be set** to specify the corresponding video loading backend
+ 
+- `VLLM_VIDEO_LOADER_BACKEND=enhanced_opencv`
+
+1、Set the size of `choose_fps` via the `--media-io-kwargs` parameter, for example:
+
+```bash
+VLLM_VIDEO_LOADER_BACKEND=enhanced_opencv vllm serve <model_path>  --dtype auto --max-model-len 2048 --api-key token-abc123 --gpu_memory_utilization 0.9 --trust-remote-code --max-num-batched-tokens 2048 --media-io-kwargs '{"video": {"choose_fps": 5}}'
+```
+>  [!NOTE]
+> 
+> It has not yet been merged into the vllm repository. You can install and use the source code through this [vllm repository](https://github.com/tc-mb/vllm/tree/MiniCPMV-v45-enhance-opencv)
+>
+> Because the new video loading backend loads more video frames, a larger video memory is required for operation.
+>
+> On 2 * 4090 GPUs, setting `gpu_memory_utilization` to 0.8, and both `max-model-len` and `max-num-batched-tokens` to 8192 allows it to run successfully, for example
+>
+> ```bash
+> VLLM_VIDEO_LOADER_BACKEND=enhanced_opencv CUDA_VISIBLE_DEVICES=1,2 vllm serve <model_path> --dtype auto --max-model-len 8192 --api-key token-abc123 --gpu_memory_utilization 0.8 --trust-remote-code --tensor-parallel-size 2 --max-num-batched-tokens 8192  --media-io-kwargs '{"video": {"choose_fps": 5}}'
+>```
+
+
+2、Or add the `mm_processor_kwargs` parameter in the OpenAI request
+-  `"mm_processor_kwargs": {"choose_fps": 1}`
+
+
+```python
+from openai import OpenAI
+import base64
+
+# API configuration
+openai_api_key = "token-abc123"
+openai_api_base = "http://localhost:8000/v1"
+
+client = OpenAI(
+    api_key=openai_api_key,
+    base_url=openai_api_base,
+)
+
+# Read video file and encode to base64
+with open('./videos/video.mp4', 'rb') as video_file:
+    video_base64 = base64.b64encode(video_file.read()).decode('utf-8')
+
+chat_response = client.chat.completions.create(
+    model="<model_path>",
+    messages=[
+        {
+            "role": "system",
+            "content": "You are a helpful assistant.",
+        },
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "Please describe this video"},
+                {
+                    "type": "video_url",
+                    "video_url": {
+                        "url": f"data:video/mp4;base64,{video_base64}",
+                    },
+                },
+            ],
+        },
+    ],
+    extra_body={
+        "stop_token_ids": [1, 151645],
+        "mm_processor_kwargs": {"choose_fps": 1}
+    }
+)
+
+print("Chat response:", chat_response)
+print("Chat response content:", chat_response.choices[0].message.content)
+```
+
+### 2.6 Multi-turn Conversation
 
 #### Launch Parameter Configuration
 

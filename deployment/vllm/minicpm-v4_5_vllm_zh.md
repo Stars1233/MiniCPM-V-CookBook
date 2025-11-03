@@ -166,7 +166,85 @@ print("Chat response:", chat_response)
 print("Chat response content:", chat_response.choices[0].message.content)
 ```
 
-### 2.5 多轮对话
+### 2.5 高帧率与长视频理解模式
+
+`MiniCPM-V4.5`模型支持高效的高帧率与长视频理解
+
+**需要设置环境变量**，指定对应的视频加载后端
+ 
+- `VLLM_VIDEO_LOADER_BACKEND=enhanced_opencv`
+
+1、通过`--media-io-kwargs`参数设置`choose_fps`大小，例如：
+
+```bash
+VLLM_VIDEO_LOADER_BACKEND=enhanced_opencv vllm serve <模型路径>  --dtype auto --max-model-len 2048 --api-key token-abc123 --gpu_memory_utilization 0.9 --trust-remote-code --max-num-batched-tokens 2048 --media-io-kwargs '{"video": {"choose_fps": 5}}'
+```
+>  [!NOTE]
+> 
+> 目前还没有合并到vllm仓库中，可以通过这个[vllm仓库](https://github.com/tc-mb/vllm/tree/MiniCPMV-v45-enhance-opencv)进行源代码安装和使用
+>
+> 由于新的视频加载后端加载的视频帧数较多，需要较大显存进行运行
+>
+> 在2 * 4090显卡上，`gpu_memory_utilization`设置成 0.8，`max-model-len`和`max-num-batched-tokens`都设置成 8192 可以成功运行，例如
+>
+> ```bash
+> VLLM_VIDEO_LOADER_BACKEND=enhanced_opencv CUDA_VISIBLE_DEVICES=1,2 vllm serve <模型路径> --dtype auto --max-model-len 8192 --api-key token-abc123 --gpu_memory_utilization 0.8 --trust-remote-code --tensor-parallel-size 2 --max-num-batched-tokens 8192  --media-io-kwargs '{"video": {"choose_fps": 5}}'
+>```
+
+
+2、或者在openai请求中加入`mm_processor_kwargs`参数
+-  `"mm_processor_kwargs": {"choose_fps": 1}`
+
+
+```python
+from openai import OpenAI
+import base64
+
+# API 配置
+openai_api_key = "token-abc123"
+openai_api_base = "http://localhost:8000/v1"
+
+client = OpenAI(
+    api_key=openai_api_key,
+    base_url=openai_api_base,
+)
+
+# 读取视频文件并编码为 base64
+with open('./videos/video.mp4', 'rb') as video_file:
+    video_base64 = base64.b64encode(video_file.read()).decode('utf-8')
+
+chat_response = client.chat.completions.create(
+    model="<模型路径>",
+    messages=[
+        {
+            "role": "system",
+            "content": "You are a helpful assistant.",
+        },
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "请描述这个视频"},
+                {
+                    "type": "video_url",
+                    "video_url": {
+                        "url": f"data:video/mp4;base64,{video_base64}",
+                    },
+                },
+            ],
+        },
+    ],
+    extra_body={
+        "stop_token_ids": [1, 151645],
+        "mm_processor_kwargs": {"choose_fps": 1}
+    }
+)
+
+print("Chat response:", chat_response)
+print("Chat response content:", chat_response.choices[0].message.content)
+```
+
+
+### 2.6 多轮对话
 
 #### 启动参数配置
 
