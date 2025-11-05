@@ -20,7 +20,8 @@ tokenizer = AutoTokenizer.from_pretrained(
 ```python
 image1 = Image.open('assets/multi1.png').convert('RGB')
 image2 = Image.open('assets/multi2.png').convert('RGB')
-question = '比较这两张图片，告诉我它们的不同之处。'
+question = 'Compare the two images, tell me about the differences between them.'
+# question = '比较这两张图片，告诉我它们的不同之处。'
 
 msgs = [{'role': 'user', 'content': [image1, image2, question]}]
 
@@ -39,6 +40,7 @@ print(answer)
 # Second round chat, pass history context of multi-turn conversation
 msgs.append({"role": "assistant", "content": [answer]})
 msgs.append({"role": "user", "content": ["Tell me about the similarities between them."]})
+# msgs.append({"role": "user", "content": ["告诉我它们的相似之处。"]})
 answer = model.chat(
     image=None,
     msgs=msgs,
@@ -56,7 +58,61 @@ print(answer)
 
 ### Example Output
 
-First round
+#### English Answer
+
+First Round
+
+```
+<think>
+So, let's analyze the two images. First, look at the colors: the first vase (the first image) is red and white, while the second one (the second image) is green, blue, and maybe other colors. Then check the patterns: the first has red cloud-like designs and possibly figures, the second has green floral patterns and different motifs. Also, the shapes might be similar (gourd-shaped) but the decoration styles are different. Wait, the first image's vase has red on white, the second uses green, blue, red, and other colors. The patterns are different too. Let me list the differences:
+
+1. Color scheme: the first image is predominantly red on white, the second is green, blue, and multicolor with floral and geometric patterns.
+2. Design patterns: the first has cloud motifs and maybe mythical figures in red, the second has floral designs with green vines, blue borders, and different symbols.
+3. Overall style: the first appears to be a classic red-decorated porcelain, the second has a more colorful and possibly multi-colored palette with intricate floral arrangements.
+</think>
+
+To compare the two images, we analyze the following differences:  
+
+1. **Color Scheme**:  
+   - The first vase  features a monochromatic red design on a white background.  
+   - The second vase  uses a multicolored palette, including green, blue, and red, with intricate floral and geometric patterns.  
+
+2. **Design Motifs**:  
+   - The first vase displays red cloud-like patterns and what appears to be a central figure (possibly a mythical or historical character) surrounded by red clouds.  
+   - The second vase has green vine-like patterns, blue decorative elements, and multicolored floral designs (e.g., red, orange flowers with green leaves) arranged in vertical bands.  
+
+3. **Overall Aesthetic Style**:  
+   - The first vase has a more traditional, single-color red-and-white aesthetic typical of certain classical porcelain styles.  
+   - The second vase exhibits a vibrant, multi-color decorative style with complex floral and symbolic motifs, reflecting a different artistic tradition.  
+
+
+These differences highlight variations in color, pattern complexity, and design themes between the two vases.
+```
+
+Second Round
+
+```
+<think>
+To identify the similarities between the two vases, let's analyze their shared features:
+
+1. **Shape and Form**:  
+   Both vases have a distinctive double-gourd (or gourd-shaped) silhouette, with a narrower neck and a bulbous, rounded body that tapers into a smaller upper section. This classic gourd shape is a common design element in traditional porcelain.
+
+2. **Material and Finish**:  
+   Both appear to be made of porcelain, characterized by their smooth, glossy white backgrounds. This indicates a high-quality ceramic material typical of fine Chinese vases.
+
+3. **Decorative Style**:  
+   Each vase features intricate, hand-painted patterns. The first vase uses a red monochromatic design, while the second uses multiple colors. Despite the difference in color schemes, both vases exhibit detailed, artisanal decoration, showcasing skilled craftsmanship.
+
+4. **Cultural Context**:  
+   The gourd shape and elaborate painted designs suggest both are influenced by traditional Chinese ceramic art, where such forms and decorative themes are prevalent.
+
+These similarities highlight their shared cultural roots, material quality, and artistic tradition, even as they differ in color and specific motifs.
+```
+
+#### 中文回答
+
+第一轮
 
 ```
 <think>
@@ -79,7 +135,7 @@ First round
 简而言之，不同之处在于颜色方案（第一个是红色，第二个是多种颜色）、图案主题（第一个有红色人物/云朵，第二个有绿色藤蔓/花卉/几何形状）以及整体设计风格（第一个更简约，第二个更复杂）。
 ```
 
-Second round
+第二轮
 
 ```
 <think>
