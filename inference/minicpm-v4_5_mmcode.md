@@ -226,9 +226,8 @@ print(answer)
 
 ## Resulting Code
 
-```
+```plaintext
 
-```python
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -263,7 +262,6 @@ ax.set_facecolor('lightgray')
 plt.tight_layout()
 plt.savefig('chart.png')  # Save the figure
 plt.show()
-```
 
 This code will generate a bar chart with:
 - Categories A, B, C, D on the x-axis
