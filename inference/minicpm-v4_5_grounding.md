@@ -187,8 +187,3 @@ Original image:
 
 After grounding:
 ![alt text](./assets/doraemon_multi_grounding.jpg)
-
-
-### Point-based Grounding
-
-```python
