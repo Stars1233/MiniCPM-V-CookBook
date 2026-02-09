@@ -81,3 +81,9 @@ logs/
 .venv
 venv/
 .env
+# WebRTC Demo 构建产物和临时文件
+demo/web_demo/WebRTC_Demo/frontend-dist/
+demo/web_demo/WebRTC_Demo/*.tar
+demo/web_demo/WebRTC_Demo/omini_backend_code/*.tar
+demo/web_demo/WebRTC_Demo/cpp_server/temp_streaming_prefill/
+demo/web_demo/WebRTC_Demo/cpp_server/*.log
