@@ -54,6 +54,12 @@ dmypy.json
 # VS Code
 .vscode/
 
+# Archive files
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+
 # macOS
 .DS_Store
 
