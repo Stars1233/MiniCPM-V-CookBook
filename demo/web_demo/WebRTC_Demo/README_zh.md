@@ -52,9 +52,60 @@
 
 </details>
 
-## 前置条件
+## 快速开始
 
-### 1. 安装 Docker
+提供三种部署方式，任选其一：
+
+| 方式 | 说明 | 推荐场景 |
+|------|------|---------|
+| **⚡ 方案 A：oneclick.sh 全自动部署** | 一个脚本全搞定，自动下载源码/模型/工具、编译、启动 | **最省心**，适合新服务器，无需 Docker，无需手动前置准备 |
+| **🐳 方案 B：Docker 部署** | 使用 Docker 运行前端/后端，本地运行 C++ 推理 | 灵活可控，支持预构建镜像 |
+
+---
+
+### ⚡ 方案 A：oneclick.sh 全自动部署（推荐）
+
+**零前置条件** — 只需提供 Python 路径，脚本自动完成所有事情：下载源码、下载模型、编译 C++、安装依赖、启动全部服务。**不需要 Docker**。
+
+```bash
+# 首次运行 — 全自动下载、编译、启动（双工模式）
+PYTHON_CMD=/path/to/python bash oneclick.sh start
+
+# 单工模式
+PYTHON_CMD=/path/to/python CPP_MODE=simplex bash oneclick.sh start
+
+# macOS 使用 Metal GPU（部分芯片上比 ANE 更快）
+PYTHON_CMD=/path/to/python VISION_BACKEND=metal bash oneclick.sh start
+
+# 查看状态 / 查看日志 / 停止
+bash oneclick.sh status
+bash oneclick.sh logs
+bash oneclick.sh stop
+```
+
+脚本自动完成：
+1. ✅ 下载 WebRTC_Demo 源码、llama.cpp-omni 源码
+2. ✅ 下载 GGUF 模型（从 HuggingFace，国内自动走镜像）
+3. ✅ 安装 livekit-server、node、pnpm 等工具
+4. ✅ 编译 llama-server
+5. ✅ 启动 LiveKit → Backend → C++ 推理 → Frontend（共 4 个服务）
+6. ✅ 自动注册推理服务
+
+启动完成后，浏览器打开：**https://localhost:8088**
+
+> 详细环境变量和进阶用法请参考 [oneclick.md](./oneclick.md)。
+
+---
+
+### 🐳 方案 B：Docker 部署
+
+使用 Docker 运行前端/后端/LiveKit，本地运行 C++ 推理服务。
+
+> 以下前置准备和部署步骤**仅方案 B 需要**，方案 A 会自动处理。
+
+#### 前置准备
+
+##### 1. 安装 Docker
 
 <details>
 <summary><b>macOS</b></summary>
@@ -127,7 +178,7 @@ docker --version
 
 </details>
 
-### 2. 编译 llamacpp-omni 推理服务
+##### 2. 编译 llamacpp-omni 推理服务
 
 <details>
 <summary><b>macOS (Apple Silicon)</b></summary>
@@ -198,9 +249,12 @@ dir build\bin\Release\llama-server.exe
 
 </details>
 
-### 3. 准备 GGUF 模型文件
+##### 3. 准备 GGUF 模型文件
 
-我们提供了**一键下载脚本**，自动下载所有所需的模型文件（共约 8.3GB）。脚本会测速 HuggingFace 和 ModelScope，自动选择更快的源。
+我们提供了**一键下载脚本** `download_models.sh`，自动下载所有所需的模型文件（共约 8.3GB），支持断点续传。
+
+<details>
+<summary><b>下载命令和模型文件说明</b></summary>
 
 ```bash
 # 下载所有必需的 GGUF 模型（自动选择最快源）
@@ -216,7 +270,7 @@ dir build\bin\Release\llama-server.exe
 ./download_models.sh --model-dir /path/to/gguf --quant Q8_0
 ```
 
-脚本下载以下文件，支持**断点续传**：
+脚本下载以下文件：
 
 ```
 <MODEL_DIR>/
@@ -238,87 +292,30 @@ dir build\bin\Release\llama-server.exe
 
 可选 LLM 量化版本：`Q4_0`、`Q4_1`、`Q4_K_M`（推荐）、`Q4_K_S`、`Q5_0`、`Q5_1`、`Q5_K_M`、`Q5_K_S`、`Q6_K`、`Q8_0`、`F16`
 
-## 快速开始
-
-我们提供了预构建的 Docker 镜像，方便快速部署和体验。Docker 镜像包含了所有必要的依赖和配置。
-
-### 下载 Docker 镜像
-
-<details>
-<summary><b>macOS (Apple Silicon)</b></summary>
-
-**设备要求**：Apple Silicon Mac（M1/M2/M3/M4），**推荐使用 M4** 以获得最佳性能。
-
-📦 [下载 Docker 镜像 (macOS)](https://drive.google.com/file/d/1i7HrGBZE3E-6lsrHjQgaEQK0Qxdi6tSN/view?usp=sharing)
-
 </details>
 
-<details>
-<summary><b>Linux (NVIDIA GPU)</b></summary>
+#### 部署步骤
 
-**设备要求**：推荐 16GB+ 显存的 NVIDIA GPU，驱动版本 525+。
+##### 可选：加载预构建 Docker 镜像
 
-📦 [下载 Docker 镜像 (Linux)](https://drive.google.com/file/d/1i7HrGBZE3E-6lsrHjQgaEQK0Qxdi6tSN/view?usp=sharing)
+如果不想自行构建前端/后端镜像，可下载预构建镜像：
 
-</details>
-
-<details>
-<summary><b>Windows</b></summary>
-
-**设备要求**：推荐 NVIDIA GPU，Docker Desktop 需启用 WSL 2 后端。
-
-📦 [下载 Docker 镜像 (Windows)](https://drive.google.com/file/d/1i7HrGBZE3E-6lsrHjQgaEQK0Qxdi6tSN/view?usp=sharing)
-
-</details>
-
-### 部署步骤
-
-#### 第一步：解压并加载 Docker 镜像
-
-<details>
-<summary><b>macOS / Linux</b></summary>
+📦 [下载 Docker 镜像](https://drive.google.com/file/d/1i7HrGBZE3E-6lsrHjQgaEQK0Qxdi6tSN/view?usp=sharing)
 
 ```bash
-# 解压压缩包
-unzip omni_docker.zip
-cd omni_docker
-
-# 加载 Docker 镜像
+# 解压并加载镜像（已有镜像可跳过此步）
 docker load -i o45-frontend.tar
 docker load -i omini_backend_code/omni_backend.tar
 ```
 
-</details>
-
-<details>
-<summary><b>Windows</b></summary>
-
-```powershell
-# 解压压缩包（使用 7-Zip 或系统自带解压工具）
-# 然后在解压目录打开 PowerShell
-
-# 加载 Docker 镜像
-docker load -i o45-frontend.tar
-docker load -i omini_backend_code\omni_backend.tar
-```
-
-</details>
-
-#### 第二步：安装 Python 依赖
-
-```bash
-# 安装推理服务所需的 Python 依赖
-pip install -r cpp_server/requirements.txt
-```
-
-#### 第三步：一键部署（推荐）
+##### 一键启动
 
 <details>
 <summary><b>macOS / Linux (deploy_all.sh)</b></summary>
 
-> **注意**：`deploy_all.sh` 脚本位于 `omni_docker` 目录下。
-
 ```bash
+cd WebRTC_Demo
+
 # 单工模式（默认）
 ./deploy_all.sh \
     --cpp-dir /path/to/llama.cpp-omni \
@@ -334,15 +331,14 @@ pip install -r cpp_server/requirements.txt
 **macOS 专属选项**：
 
 ```bash
-# 使用 Apple Neural Engine (ANE/NPU) 加速视觉编码器（通过 CoreML）
-# 需要 <MODEL_DIR>/vision/ 下包含 coreml_minicpmo45_vit_all_f16.mlmodelc
+# 使用 Apple Neural Engine (ANE/NPU) 加速视觉编码器
 ./deploy_all.sh \
     --cpp-dir /path/to/llama.cpp-omni \
     --model-dir /path/to/gguf \
     --duplex \
     --vision-backend coreml
 
-# 手动指定 Python 路径（自动检测失败时使用）
+# 手动指定 Python 路径
 ./deploy_all.sh \
     --cpp-dir /path/to/llama.cpp-omni \
     --model-dir /path/to/gguf \
@@ -356,10 +352,8 @@ pip install -r cpp_server/requirements.txt
 <details>
 <summary><b>Windows (deploy_all_win.ps1)</b></summary>
 
-> **注意**：在 PowerShell 中运行。`deploy_all_win.ps1` 脚本位于 `omni_docker` 目录下。
-
 ```powershell
-# 允许脚本执行（首次运行）
+cd WebRTC_Demo
 Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
 
 # 单工模式（默认）
@@ -376,17 +370,11 @@ Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
 
 </details>
 
-部署脚本自动完成以下任务：
-- 检查 Docker 环境
-- 自动更新 LiveKit 配置中的本机 IP
-- 启动 Docker 服务（前端、后端、LiveKit）
-- 安装 Python 依赖
-- 启动 C++ 推理服务
-- 注册推理服务到后端
+脚本自动完成：启动 Docker 服务（前端、后端、LiveKit）→ 安装 Python 依赖 → 启动 C++ 推理 → 注册服务
 
-#### 第四步：访问 Web 界面
+启动完成后，浏览器打开：**http://localhost:3000**
 
-浏览器打开：**http://localhost:3000**
+> 手动逐步部署请参考 [DEPLOY.md](./DEPLOY.md)。
 
 ### 服务端口说明
 

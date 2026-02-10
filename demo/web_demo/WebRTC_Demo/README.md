@@ -52,9 +52,60 @@ The full model set (LLM Q4_K_M + Vision/Audio/TTS F16 + Token2Wav) totals **~8.3
 
 </details>
 
-## Prerequisites
+## Quick Start
 
-### 1. Install Docker
+Two deployment options are available:
+
+| Option | Description | Best for |
+|--------|-------------|----------|
+| **⚡ Option A: oneclick.sh** | Fully automatic — downloads source/models/tools, compiles, starts everything | **Easiest**, ideal for fresh servers, no Docker needed |
+| **🐳 Option B: Docker Deployment** | Uses Docker for frontend/backend, runs C++ inference locally | Flexible, supports pre-built images |
+
+---
+
+### ⚡ Option A: oneclick.sh Fully Automatic Deployment (Recommended)
+
+**Zero prerequisites** — just provide a Python path. The script handles everything: downloads source code, downloads models, compiles C++, installs dependencies, and starts all services. **No Docker required**.
+
+```bash
+# First run — fully automatic download, compile, and start (duplex mode)
+PYTHON_CMD=/path/to/python bash oneclick.sh start
+
+# Simplex mode
+PYTHON_CMD=/path/to/python CPP_MODE=simplex bash oneclick.sh start
+
+# macOS: use Metal GPU (may be faster than ANE on some chips)
+PYTHON_CMD=/path/to/python VISION_BACKEND=metal bash oneclick.sh start
+
+# Check status / view logs / stop
+bash oneclick.sh status
+bash oneclick.sh logs
+bash oneclick.sh stop
+```
+
+The script automatically:
+1. ✅ Downloads WebRTC_Demo source, llama.cpp-omni source
+2. ✅ Downloads GGUF models (from HuggingFace, auto-mirrors for China)
+3. ✅ Installs livekit-server, node, pnpm, and other tools
+4. ✅ Compiles llama-server
+5. ✅ Starts LiveKit → Backend → C++ Inference → Frontend (4 services)
+6. ✅ Auto-registers inference service
+
+Once started, open in your browser: **https://localhost:8088**
+
+> For detailed environment variables and advanced usage, see [oneclick.md](./oneclick.md).
+
+---
+
+### 🐳 Option B: Docker Deployment
+
+Uses Docker for frontend/backend/LiveKit, runs C++ inference locally.
+
+> The following prerequisites and deployment steps are **only needed for Option B**. Option A handles everything automatically.
+
+#### Prerequisites
+
+##### 1. Install Docker
 
 <details>
 <summary><b>macOS</b></summary>
@@ -127,7 +178,7 @@ docker --version
 
 </details>
 
-### 2. Build llamacpp-omni Inference Service
+##### 2. Build llamacpp-omni Inference Service
 
 <details>
 <summary><b>macOS (Apple Silicon)</b></summary>
@@ -198,9 +249,12 @@ dir build\bin\Release\llama-server.exe
 
 </details>
 
-### 3. Prepare GGUF Model Files
+##### 3. Prepare GGUF Model Files
 
-We provide a **one-click download script** that automatically downloads all required model files (~8.3GB total). The script tests HuggingFace and ModelScope to pick the faster source.
+We provide a **one-click download script** `download_models.sh` that automatically downloads all required model files (~8.3GB total), with resume support.
+
+<details>
+<summary><b>Download commands and model file details</b></summary>
 
 ```bash
 # Download all required GGUF models (auto-selects fastest source)
@@ -216,7 +270,7 @@ We provide a **one-click download script** that automatically downloads all requ
 ./download_models.sh --model-dir /path/to/gguf --quant Q8_0
 ```
 
-The script downloads these files and supports **resume** on interruption:
+The script downloads these files:
 
 ```
 <MODEL_DIR>/
@@ -238,87 +292,30 @@ The script downloads these files and supports **resume** on interruption:
 
 Available LLM quantizations: `Q4_0`, `Q4_1`, `Q4_K_M` (recommended), `Q4_K_S`, `Q5_0`, `Q5_1`, `Q5_K_M`, `Q5_K_S`, `Q6_K`, `Q8_0`, `F16`
 
-## Quick Start
-
-We provide a pre-built Docker image for quick deployment and experience. The Docker image includes all necessary dependencies and configurations.
-
-### Download Docker Images
-
-<details>
-<summary><b>macOS (Apple Silicon)</b></summary>
-
-**Requirements**: Apple Silicon Mac (M1/M2/M3/M4), **M4 recommended** for optimal performance.
-
-📦 [Download Docker Image (macOS)](https://drive.google.com/file/d/1i7HrGBZE3E-6lsrHjQgaEQK0Qxdi6tSN/view?usp=sharing)
-
 </details>
 
-<details>
-<summary><b>Linux (NVIDIA GPU)</b></summary>
+#### Deploy
 
-**Requirements**: NVIDIA GPU with 16GB+ VRAM recommended, NVIDIA driver 525+.
+##### Optional: Load Pre-built Docker Images
 
-📦 [Download Docker Image (Linux)](https://drive.google.com/file/d/1i7HrGBZE3E-6lsrHjQgaEQK0Qxdi6tSN/view?usp=sharing)
+If you don't want to build frontend/backend images yourself, download pre-built images:
 
-</details>
-
-<details>
-<summary><b>Windows</b></summary>
-
-**Requirements**: NVIDIA GPU recommended, Docker Desktop with WSL 2 backend.
-
-📦 [Download Docker Image (Windows)](https://drive.google.com/file/d/1i7HrGBZE3E-6lsrHjQgaEQK0Qxdi6tSN/view?usp=sharing)
-
-</details>
-
-### Deployment Steps
-
-#### Step 1: Extract and Load Docker Images
-
-<details>
-<summary><b>macOS / Linux</b></summary>
+📦 [Download Docker Image](https://drive.google.com/file/d/1i7HrGBZE3E-6lsrHjQgaEQK0Qxdi6tSN/view?usp=sharing)
 
 ```bash
-# Extract the package
-unzip omni_docker.zip
-cd omni_docker
-
-# Load Docker images
+# Extract and load images (skip if you already have images)
 docker load -i o45-frontend.tar
 docker load -i omini_backend_code/omni_backend.tar
 ```
 
-</details>
-
-<details>
-<summary><b>Windows</b></summary>
-
-```powershell
-# Extract the package (use 7-Zip or built-in extractor)
-# Then open PowerShell in the extracted directory
-
-# Load Docker images
-docker load -i o45-frontend.tar
-docker load -i omini_backend_code\omni_backend.tar
-```
-
-</details>
-
-#### Step 2: Install Python Dependencies
-
-```bash
-# Install required Python dependencies for the inference service
-pip install -r cpp_server/requirements.txt
-```
-
-#### Step 3: One-Click Deployment (Recommended)
+##### One-Click Start
 
 <details>
 <summary><b>macOS / Linux (deploy_all.sh)</b></summary>
 
-> **Note**: The `deploy_all.sh` script is located in the `omni_docker` directory.
-
 ```bash
+cd WebRTC_Demo
+
 # Simplex mode (default)
 ./deploy_all.sh \
     --cpp-dir /path/to/llama.cpp-omni \
@@ -334,15 +331,14 @@ pip install -r cpp_server/requirements.txt
 **macOS specific options**:
 
 ```bash
-# Use Apple Neural Engine (ANE/NPU) for vision encoder via CoreML
-# Requires coreml_minicpmo45_vit_all_f16.mlmodelc in <MODEL_DIR>/vision/
+# Use Apple Neural Engine (ANE/NPU) for vision encoder
 ./deploy_all.sh \
     --cpp-dir /path/to/llama.cpp-omni \
     --model-dir /path/to/gguf \
     --duplex \
     --vision-backend coreml
 
-# Specify Python path if auto-detection fails
+# Specify Python path
 ./deploy_all.sh \
     --cpp-dir /path/to/llama.cpp-omni \
     --model-dir /path/to/gguf \
@@ -356,10 +352,8 @@ pip install -r cpp_server/requirements.txt
 <details>
 <summary><b>Windows (deploy_all_win.ps1)</b></summary>
 
-> **Note**: Run in PowerShell. The `deploy_all_win.ps1` script is located in the `omni_docker` directory.
-
 ```powershell
-# Allow script execution (run once)
+cd WebRTC_Demo
 Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
 
 # Simplex mode (default)
@@ -376,17 +370,11 @@ Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
 
 </details>
 
-The deployment script automatically:
-- Checks Docker environment
-- Updates LiveKit configuration with local IP
-- Starts Docker services (frontend, backend, LiveKit)
-- Installs Python dependencies
-- Starts C++ inference service
-- Registers inference service to backend
+The script starts Docker services (frontend, backend, LiveKit) → installs Python deps → starts C++ inference → registers service.
 
-#### Step 4: Access the Web Interface
+Once started, open in your browser: **http://localhost:3000**
 
-Open in your browser: **http://localhost:3000**
+> For step-by-step manual deployment, see [DEPLOY.md](./DEPLOY.md).
 
 ### Service Ports
 
