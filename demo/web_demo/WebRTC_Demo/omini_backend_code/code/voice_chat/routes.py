@@ -86,13 +86,24 @@ async def logout(request: LogoutRequest):
     """登出接口 - 释放指定的token"""
     try:
         # 根据user_id释放推理服务锁定
-        # inference_service_manager = await get_service_manager()
-        # inference_service = await inference_service_manager.get_service_lock_info(request.userId)
-        # if inference_service:
-        #     await inference_service_manager.release_service_lock(inference_service.service_id, request.userId)
-        #     logger.info(f"注销推理服务: {inference_service.service_id}")
-        # else:
-        #     logger.error(f"该用户没有占用推理服务: {request.userId}, 无法登出")
+        inference_service_manager = await get_service_manager()
+        all_services = await inference_service_manager.get_all_services()
+        released = False
+        for service in all_services:
+            if service.locked_by and service.locked_by == request.userId:
+                await inference_service_manager.release_service_lock(service.service_id, request.userId)
+                logger.info(f"注销推理服务: {service.service_id} (用户: {request.userId})")
+                released = True
+                break
+        if not released:
+            # 单服务模式：如果只有一个服务且是 busy，直接释放
+            busy_services = [s for s in all_services if s.status.value == 'busy']
+            if len(busy_services) == 1:
+                await inference_service_manager.release_service_lock(busy_services[0].service_id, busy_services[0].locked_by)
+                logger.info(f"强制释放唯一繁忙服务: {busy_services[0].service_id}")
+                released = True
+            else:
+                logger.warning(f"用户 {request.userId} 没有占用推理服务，跳过释放")
         return LogoutResponse(
                 success=True,
                 message="登出成功"

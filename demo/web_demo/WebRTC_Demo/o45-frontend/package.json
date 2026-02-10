@@ -10,6 +10,7 @@
         "build": "vite build",
         "build:internal": "vite build --mode prod-internal",
         "build:external": "vite build --mode prod-external",
+        "serve:external": "node serve-prod.mjs",
         "preview": "vite preview",
         "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs --fix --ignore-path .gitignore",
         "format": "prettier --write src/",

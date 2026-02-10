@@ -66,13 +66,25 @@ export default defineConfig({
         }
     },
     server: {
-        https: {
-            // key: fs.readFileSync(path.resolve(__dirname, '192.168.10.138-key.pem')),
-            // cert: fs.readFileSync(path.resolve(__dirname, '192.168.10.138.pem'))
-        },
+        https: (() => {
+            // 由 one_click.sh 自动生成的自签名证书（包含服务器 IP）
+            const certDir = path.resolve(__dirname, '../.certs');
+            const keyPath = path.resolve(certDir, 'server.key');
+            const certPath = path.resolve(certDir, 'server.crt');
+            if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
+                return { key: fs.readFileSync(keyPath), cert: fs.readFileSync(certPath) };
+            }
+            return false;  // 无证书时回退到 HTTP
+        })(),
         host: '0.0.0.0',
         port: 8088,
         proxy: {
+            // LiveKit 信令代理（HTTPS 页面通过 wss:// → ws:// 转发）
+            '/rtc': {
+                target: 'ws://localhost:7880',
+                ws: true,
+                changeOrigin: true
+            },
             // '/api/v1': {
             //     // 0.5-1.0-1.5-2.0
             //     target: 'http://10.158.0.26:8021',
@@ -172,14 +184,8 @@ export default defineConfig({
                 rewrite: path => path.replace(/^\/api\/python/, '/api')
             },
             '/api': {
-                // target: 'http://54.226.130.32:8035',
-                // target: 'http://10.156.18.189:8021',
                 // target: 'http://10.32.0.221:8022',
-                // target: 'http://10.32.0.221:8021',
-                // target: 'http://47.93.211.211:8022',
-                target: 'http://10.32.0.221:8022',
-                // target: 'https://minicpm-omni-test.modelbest.cn/',
-                // target: 'https://minicpm-omni.openbmb.cn',
+                target: 'http://localhost:8021',
                 ws: true,
                 changeOrigin: true
             },
