@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "minicpmo-web-backend"
-version = "0.1.0-lite"
-description = "MiniCPMO Web Backend FastAPI (Lite - 本地部署版)"
+version = "0.1.0"
+description = "MiniCPMO Web Backend FastAPI"
 authors = [
     {name = "xushihao", email = "2580507844@qq.com"}
 ]

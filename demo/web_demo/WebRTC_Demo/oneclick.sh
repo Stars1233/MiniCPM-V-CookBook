@@ -316,7 +316,8 @@ wait_for_port() {
         i=$((i + 1))
         if [[ $i -ge $max_wait ]]; then
             err "$name failed to start within ${max_wait}s (port $port)"
-            err "Check logs: tail -50 $LOG_DIR/${name,,}.log"
+            lower_name=$(echo "$name" | tr '[:upper:]' '[:lower:]')
+            err "Check logs: tail -50 $LOG_DIR/$lower_name.log"
             return 1
         fi
     done
@@ -753,12 +754,31 @@ download_models() {
             info "Using HuggingFace mirror: $HF_ENDPOINT"
         fi
 
-        $hf_dl_cmd "$HF_MODEL_REPO" \
-            --local-dir "$MODEL_DIR" \
-            2>&1 | tail -20 || {
-            err "Model download failed"
-            return 1
-        }
+        # Selective download for macOS (skip extra LLM quantizations, 15GB -> ~12GB)
+        local os_type
+        os_type="$(uname -s)"
+        if [[ "$os_type" == "Darwin" ]]; then
+            info "macOS detected: downloading essential files only (Q4_K_M LLM + all submodels)"
+            $hf_dl_cmd "$HF_MODEL_REPO" \
+                --local-dir "$MODEL_DIR" \
+                --include "MiniCPM-o-4_5-Q4_K_M.gguf" \
+                --include "vision/*" \
+                --include "audio/*" \
+                --include "tts/*" \
+                --include "token2wav-gguf/*" \
+                --include "README.md" \
+                --include ".gitattributes" || {
+                err "Model download failed"
+                return 1
+            }
+        else
+            # Linux: download all (user may want different quantizations)
+            $hf_dl_cmd "$HF_MODEL_REPO" \
+                --local-dir "$MODEL_DIR" || {
+                err "Model download failed"
+                return 1
+            }
+        fi
 
         ok "Model download complete: $MODEL_DIR"
         return 0
