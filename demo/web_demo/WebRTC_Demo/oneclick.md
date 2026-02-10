@@ -2,6 +2,16 @@
 
 One script to download, build, and run the entire MiniCPM-o WebRTC demo stack **without Docker**.
 
+## Prerequisites
+
+| Requirement | Note |
+|------------|------|
+| **Python >= 3.9** |  |
+| git | sudo \[apt\|yum\|dnf\|brew\] install git |
+| cmake | sudo \[apt\|yum\|dnf\|brew\] install cmake ninja |
+
+> **Tip:** If all tools are already installed, no sudo is needed and the script runs fully unprivileged.
+
 ## Quick Start
 
 ```bash
@@ -148,7 +158,7 @@ All variables have sensible defaults. Override as needed:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `FRONTEND_MODE` | `dev` | `dev` (Vite hot reload) or `prod` (production build) |
+| `FRONTEND_MODE` | `prod` | `prod` (production build) or `dev` (Vite hot reload) |
 | `FORCE_BUILD` | `0` | Set to `1` to force frontend rebuild in prod mode |
 
 ### Download Mirrors (for China)
