@@ -20,7 +20,7 @@ room:
 
 # API密钥配置（与 docker-compose.yml 和 dev.yaml 保持一致）
 keys:
-  devkey: secret
+  devkey: secretsecretsecretsecretsecretsecret
 
 # LiveKit内置TURN服务器配置（帮助穿透NAT，确保前端能连接）
 turn:

@@ -13,16 +13,22 @@
             <!-- 中间：实时语音通话/视频通话导航 -->
             <div class="header-nav">
                 <div class="toolbar-nav">
-                    <div
-                        v-if="modelType === 'simplex'"
-                        :class="['nav-item', { active: activeTab === 'voice' }]"
-                        @click="handleClickTab('voice', 0)"
-                    >
-                        {{ t('menuTabVoice') }}
-                    </div>
-                    <div :class="['nav-item', { active: activeTab === 'video' }]" @click="handleClickTab('video', 1)">
-                        {{ t('menuTabVideo') }}
-                    </div>
+                    <el-tooltip :content="t('requiresSimplex')" placement="bottom" :disabled="cppMode !== 'duplex'">
+                        <div
+                            :class="['nav-item', { active: activeTab === 'voice', 'disabled-tab': cppMode === 'duplex' }]"
+                            @click="cppMode !== 'duplex' && handleClickTab('voice', 0)"
+                        >
+                            {{ t('menuTabVoice') }}
+                        </div>
+                    </el-tooltip>
+                    <el-tooltip :content="t('requiresDuplex')" placement="bottom" :disabled="cppMode !== 'simplex'">
+                        <div
+                            :class="['nav-item', { active: activeTab === 'video', 'disabled-tab': cppMode === 'simplex' }]"
+                            @click="cppMode !== 'simplex' && handleClickTab('video', 1)"
+                        >
+                            {{ t('menuTabVideo') }}
+                        </div>
+                    </el-tooltip>
                 </div>
             </div>
 
@@ -379,7 +385,7 @@
                 :theme="activeTab === 'video' && isCalling ? 'dark' : 'light'"
             />
             <div class="model-type" v-if="!isCalling">
-                {{ activeTab === 'voice' ? t('simplexMode') : t('duplexMode') }}
+                {{ cppMode === 'simplex' ? t('simplexMode') : t('duplexMode') }}
             </div>
             <div class="hd-type" v-if="isCalling && hdMode">
                 {{ t('hdModeLabel') }}
@@ -623,7 +629,9 @@
 
     console.log('📱 平板端首页已加载', route);
     const typeObj = { 0: 'voice', 1: 'video', 3: 'staticVoice' };
-    const defaultType = typeObj[route.query.type] || 'video';
+    // Read current C++ inference mode from build-time env (set by oneclick.sh)
+    const cppMode = import.meta.env.VITE_CPP_MODE || 'duplex';
+    const defaultType = cppMode === 'simplex' ? 'voice' : (typeObj[route.query.type] || 'video');
     // const defaultType = 'video';
 
     const { t, locale } = useI18n();
@@ -1310,6 +1318,19 @@
 
                         &:active {
                             transform: scale(0.98);
+                        }
+
+                        &.disabled-tab {
+                            opacity: 0.4;
+                            cursor: not-allowed;
+                            &.active {
+                                background: transparent;
+                                color: #595f6d;
+                                font-weight: 400;
+                            }
+                            &:active {
+                                transform: none;
+                            }
                         }
                     }
                 }

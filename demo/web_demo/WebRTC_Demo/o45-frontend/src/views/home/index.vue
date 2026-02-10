@@ -1,6 +1,6 @@
 <template>
     <div class="home-page" :class="{ 'loading-mode': isLoadingMode }">
-        <div class="model-type">{{ activeTab === 'voice' ? t('simplexMode') : t('duplexMode') }}</div>
+        <div class="model-type">{{ cppMode === 'simplex' ? t('simplexMode') : t('duplexMode') }}</div>
         <!-- Header -->
         <div class="home-page-header">
             <div class="home-page-header-logo">
@@ -324,20 +324,32 @@
         <div class="home-page-content">
             <!-- Collapsible Sidebar -->
             <div :class="`home-page-content-nav ${isCollapsed ? 'collapsed-nav' : ''}`">
-                <div
-                    :class="`home-page-content-nav-item ${activeTab === 'voice' ? 'active-tab' : ''}`"
-                    @click="handleClickTab('voice', 0)"
+                <el-tooltip
+                    :content="t('requiresSimplex')"
+                    placement="right"
+                    :disabled="cppMode !== 'duplex'"
                 >
-                    <SvgIcon name="voice-icon" class="nav-icon" />
-                    <span class="nav-label">{{ t('menuTabVoice') }}</span>
-                </div>
-                <div
-                    :class="`home-page-content-nav-item ${activeTab === 'video' ? 'active-tab' : ''}`"
-                    @click="handleClickTab('video', 1)"
+                    <div
+                        :class="`home-page-content-nav-item ${activeTab === 'voice' ? 'active-tab' : ''} ${cppMode === 'duplex' ? 'disabled-tab' : ''}`"
+                        @click="cppMode !== 'duplex' && handleClickTab('voice', 0)"
+                    >
+                        <SvgIcon name="voice-icon" class="nav-icon" />
+                        <span class="nav-label">{{ t('menuTabVoice') }}</span>
+                    </div>
+                </el-tooltip>
+                <el-tooltip
+                    :content="t('requiresDuplex')"
+                    placement="right"
+                    :disabled="cppMode !== 'simplex'"
                 >
-                    <SvgIcon name="video-icon" class="nav-icon" />
-                    <span class="nav-label">{{ t('menuTabVideo') }}</span>
-                </div>
+                    <div
+                        :class="`home-page-content-nav-item ${activeTab === 'video' ? 'active-tab' : ''} ${cppMode === 'simplex' ? 'disabled-tab' : ''}`"
+                        @click="cppMode !== 'simplex' && handleClickTab('video', 1)"
+                    >
+                        <SvgIcon name="video-icon" class="nav-icon" />
+                        <span class="nav-label">{{ t('menuTabVideo') }}</span>
+                    </div>
+                </el-tooltip>
                 <!-- <div
                     :class="`home-page-content-nav-item ${activeTab === 'scene' ? 'active-tab' : ''}`"
                     @click="handleClickTab('scene', 2)"
@@ -637,7 +649,10 @@
     console.log('💻 PC端首页已加载');
     // const typeObj = { 0: 'voice', 1: 'video', 2: 'scene' };
     const typeObj = { 0: 'voice', 1: 'video', 3: 'staticVoice' };
-    const defaultType = typeObj[route.query.type] || 'video';
+    // Read current C++ inference mode from build-time env (set by oneclick.sh)
+    const cppMode = import.meta.env.VITE_CPP_MODE || 'duplex';
+    // Default to the available tab based on deployment mode
+    const defaultType = cppMode === 'simplex' ? 'voice' : (typeObj[route.query.type] || 'video');
     // const defaultType = 'video';
 
     const { t, locale } = useI18n();
@@ -1443,6 +1458,28 @@
                         color: #1e71ff;
                         .nav-icon {
                             color: #1a71ff;
+                        }
+                    }
+                    &.disabled-tab {
+                        opacity: 0.4;
+                        cursor: not-allowed;
+                        pointer-events: auto; /* keep pointer events for tooltip */
+                        &:hover {
+                            background: transparent;
+                            color: inherit;
+                            .nav-icon {
+                                color: inherit;
+                            }
+                        }
+                        &.active-tab {
+                            background: transparent;
+                            color: inherit;
+                            .nav-icon {
+                                color: inherit;
+                            }
+                            &::after {
+                                display: none;
+                            }
                         }
                     }
                 }

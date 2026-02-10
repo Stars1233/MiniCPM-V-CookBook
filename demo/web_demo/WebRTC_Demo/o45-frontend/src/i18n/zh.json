@@ -15,6 +15,8 @@
     "modeSwitch": "模式切换",
     "simplexMode": "单工模式",
     "duplexMode": "双工模式",
+    "requiresDuplex": "需要以双工模式部署",
+    "requiresSimplex": "需要以单工模式部署",
     "restartModel": "重启模型",
     "interrupt": "打断",
     "captions": "字幕",

@@ -61,6 +61,9 @@ FIXED_TIMBRE_PATH = os.environ.get("REF_AUDIO", "")  # 默认在启动时从 LLA
 # 视觉编码器后端: "metal"(默认，GPU) 或 "coreml"(ANE加速，macOS专用)
 VISION_BACKEND = os.environ.get("VISION_BACKEND", "metal")
 
+# Token2Wav device: "gpu:1"(默认，GPU加速) 或 "cpu"(节省GPU显存，适合16GB内存机型)
+TOKEN2WAV_DEVICE = os.environ.get("TOKEN2WAV_DEVICE", "gpu:1")
+
 
 def auto_detect_llm_model(model_dir: str) -> str:
     """自动从模型目录检测 LLM GGUF 文件
@@ -316,6 +319,7 @@ def restart_cpp_server():
             "model_dir": model_dir,
             "tts_bin_dir": tts_bin_dir,
             "tts_gpu_layers": 100,
+            "token2wav_device": TOKEN2WAV_DEVICE,
             "output_dir": CPP_OUTPUT_DIR,
         }
         
@@ -811,6 +815,7 @@ async def lifespan(app: FastAPI):
             "model_dir": model_dir,
             "tts_bin_dir": tts_bin_dir,
             "tts_gpu_layers": 100,
+            "token2wav_device": TOKEN2WAV_DEVICE,
             "output_dir": CPP_OUTPUT_DIR,
         }
         
@@ -1106,6 +1111,7 @@ async def init_sys_prompt(request: InitSysPromptRequest):
                 "model_dir": model_dir,
                 "tts_bin_dir": tts_bin_dir,
                 "tts_gpu_layers": 100,
+                "token2wav_device": TOKEN2WAV_DEVICE,
                 "output_dir": CPP_OUTPUT_DIR,  # 🔧 [多实例支持] 传递配置的输出目录
                 "language": language,        # 🔧 [语言切换] "zh" 或 "en"
             }

@@ -7,7 +7,7 @@
             :speed-mbps="speedMbps"
             :theme="activeTab === 'video' && isCalling ? 'dark' : 'light'"
         />
-        <div class="model-type" v-if="!isCalling">{{ activeTab === 'voice' ? t('simplexMode') : t('duplexMode') }}</div>
+        <div class="model-type" v-if="!isCalling">{{ cppMode === 'simplex' ? t('simplexMode') : t('duplexMode') }}</div>
         <div class="hd-type" v-if="isCalling && hdMode">
             {{ t('hdModeLabel') }}
         </div>
@@ -112,19 +112,26 @@
         <!-- 通话中：隐藏底部切换按钮 -->
         <div v-if="!isCalling" class="bottom-tabs">
             <div class="tab-group">
-                <div
-                    v-if="modelType === 'simplex'"
-                    class="tab-btn"
-                    :class="{ active: activeTab === 'voice' }"
-                    @click="handleClickTab('voice', 0)"
-                >
-                    <SvgIcon name="mobile-voice-icon" class="tab-icon" />
-                    <span class="tab-text">{{ language === 'zh' ? '语音通话' : 'Voice Call' }}</span>
-                </div>
-                <div class="tab-btn" :class="{ active: activeTab === 'video' }" @click="handleClickTab('video', 1)">
-                    <SvgIcon name="mobile-video-icon" class="tab-icon" />
-                    <span class="tab-text">{{ language === 'zh' ? '视频通话' : 'Video Call' }}</span>
-                </div>
+                <el-tooltip :content="t('requiresSimplex')" placement="top" :disabled="cppMode !== 'duplex'">
+                    <div
+                        class="tab-btn"
+                        :class="{ active: activeTab === 'voice', 'disabled-tab': cppMode === 'duplex' }"
+                        @click="cppMode !== 'duplex' && handleClickTab('voice', 0)"
+                    >
+                        <SvgIcon name="mobile-voice-icon" class="tab-icon" />
+                        <span class="tab-text">{{ language === 'zh' ? '语音通话' : 'Voice Call' }}</span>
+                    </div>
+                </el-tooltip>
+                <el-tooltip :content="t('requiresDuplex')" placement="top" :disabled="cppMode !== 'simplex'">
+                    <div
+                        class="tab-btn"
+                        :class="{ active: activeTab === 'video', 'disabled-tab': cppMode === 'simplex' }"
+                        @click="cppMode !== 'simplex' && handleClickTab('video', 1)"
+                    >
+                        <SvgIcon name="mobile-video-icon" class="tab-icon" />
+                        <span class="tab-text">{{ language === 'zh' ? '视频通话' : 'Video Call' }}</span>
+                    </div>
+                </el-tooltip>
             </div>
         </div>
 
@@ -406,7 +413,9 @@
     });
 
     const typeObj = { 0: 'voice', 1: 'video' };
-    const defaultType = typeObj[route.query.type] || 'video';
+    // Read current C++ inference mode from build-time env (set by oneclick.sh)
+    const cppMode = import.meta.env.VITE_CPP_MODE || 'duplex';
+    const defaultType = cppMode === 'simplex' ? 'voice' : (typeObj[route.query.type] || 'video');
     // const defaultType = 'video';
 
     const { t, locale } = useI18n();
@@ -1260,6 +1269,21 @@
 
                         .tab-text {
                             font-weight: 500;
+                        }
+                    }
+
+                    &.disabled-tab {
+                        opacity: 0.4;
+                        cursor: not-allowed;
+                        &.active {
+                            background: transparent;
+                            .tab-icon,
+                            .tab-text {
+                                color: #595f6d;
+                            }
+                            .tab-text {
+                                font-weight: 400;
+                            }
                         }
                     }
                 }

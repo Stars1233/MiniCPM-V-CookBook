@@ -15,6 +15,8 @@
     "modeSwitch": "Switch Mode",
     "simplexMode": "Simplex Mode",
     "duplexMode": "Duplex Mode",
+    "requiresDuplex": "Requires duplex mode deployment",
+    "requiresSimplex": "Requires simplex mode deployment",
     "restartModel": "Restart Model",
     "interrupt": "Interrupt",
     "captions": "Captions",
