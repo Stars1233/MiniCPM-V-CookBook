@@ -8,6 +8,9 @@ A full-duplex real-time video interaction solution based on WebRTC, enabling sea
 
 This demo implements a **full-duplex real-time video interaction** solution using WebRTC technology. It fills a significant gap in the open-source community by providing a **streaming duplex conversation** capability that was previously unavailable.
 
+> [!IMPORTANT]
+> **GGUF Model Update**: The GGUF model files have been recently updated (including `prompt_cache.gguf` and other components). If you downloaded the models before, please re-download the latest version to ensure compatibility. Using outdated model files may cause initialization failures or degraded audio quality.
+
 ## Hardware Requirements
 
 The full model set (LLM Q4_K_M + Vision/Audio/TTS F16 + Token2Wav) totals **~8.3 GB**, with a runtime GPU memory footprint of approximately **10 GB** (including KV cache and compute buffers).
@@ -139,6 +142,15 @@ cmake --build build --target llama-server -j
 # Verify build
 ls -la build/bin/llama-server
 ```
+
+**Optional: Apple Neural Engine (ANE) acceleration for Vision encoder**
+
+macOS supports running the Vision encoder on the Apple Neural Engine (ANE/NPU) via CoreML, which offloads the ViT computation from the GPU and leaves more GPU bandwidth for the LLM and TTS models. To enable this:
+
+1. Download the CoreML vision model (`coreml_minicpmo45_vit_all_f16.mlmodelc`) and place it in `<MODEL_DIR>/vision/`
+2. Add `--vision-backend coreml` when deploying (see deployment steps below)
+
+> **Note**: On some chips, Metal GPU may actually be faster than ANE for vision encoding. We recommend benchmarking both backends on your hardware. The default is Metal (GPU).
 
 </details>
 
@@ -302,7 +314,8 @@ pip install -r cpp_server/requirements.txt
 **macOS specific options**:
 
 ```bash
-# Use CoreML/ANE for vision encoder (macOS only)
+# Use Apple Neural Engine (ANE/NPU) for vision encoder via CoreML
+# Requires coreml_minicpmo45_vit_all_f16.mlmodelc in <MODEL_DIR>/vision/
 ./deploy_all.sh \
     --cpp-dir /path/to/llama.cpp-omni \
     --model-dir /path/to/gguf \
@@ -315,6 +328,8 @@ pip install -r cpp_server/requirements.txt
     --model-dir /path/to/gguf \
     --python /path/to/python3
 ```
+
+> **Tip**: `--vision-backend coreml` runs the Vision encoder on the NPU, freeing the GPU for LLM/TTS. Default is `metal` (GPU). Try both and compare latency on your specific hardware.
 
 </details>
 

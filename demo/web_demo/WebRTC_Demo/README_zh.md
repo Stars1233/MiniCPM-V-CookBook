@@ -8,6 +8,9 @@
 
 本演示采用 WebRTC 技术实现了**全双工实时视频交互**方案。该方案填补了目前开源社区中**流式双工对话方案**的技术空白，为实时多模态交互提供了完整的解决方案。
 
+> [!IMPORTANT]
+> **GGUF 模型更新提醒**：GGUF 模型文件近期有更新（包括 `prompt_cache.gguf` 等组件）。如果您之前已下载过模型，请重新下载最新版本以确保兼容性。使用旧版模型文件可能导致初始化失败或音频质量下降。
+
 ## 硬件配置要求
 
 全量模型（LLM Q4_K_M + Vision/Audio/TTS F16 + Token2Wav）总计约 **8.3 GB**，运行时 GPU 显存占用约 **10 GB**（含 KV cache 和计算缓冲区）。
@@ -139,6 +142,15 @@ cmake --build build --target llama-server -j
 # 验证编译结果
 ls -la build/bin/llama-server
 ```
+
+**可选：Apple Neural Engine (ANE/NPU) 加速视觉编码器**
+
+macOS 支持通过 CoreML 将视觉编码器运行在 Apple Neural Engine（ANE/NPU）上，从而将 ViT 计算从 GPU 卸载，为 LLM 和 TTS 模型留出更多 GPU 带宽。启用方法：
+
+1. 下载 CoreML 视觉模型（`coreml_minicpmo45_vit_all_f16.mlmodelc`），放置在 `<MODEL_DIR>/vision/` 目录下
+2. 部署时添加 `--vision-backend coreml` 参数（见下方部署步骤）
+
+> **说明**：在部分芯片上，Metal GPU 的视觉编码速度可能快于 ANE。建议在你的硬件上分别测试两种后端，选择更快的。默认使用 Metal (GPU)。
 
 </details>
 
@@ -302,7 +314,8 @@ pip install -r cpp_server/requirements.txt
 **macOS 专属选项**：
 
 ```bash
-# 使用 CoreML/ANE 加速视觉编码器（仅 macOS）
+# 使用 Apple Neural Engine (ANE/NPU) 加速视觉编码器（通过 CoreML）
+# 需要 <MODEL_DIR>/vision/ 下包含 coreml_minicpmo45_vit_all_f16.mlmodelc
 ./deploy_all.sh \
     --cpp-dir /path/to/llama.cpp-omni \
     --model-dir /path/to/gguf \
@@ -315,6 +328,8 @@ pip install -r cpp_server/requirements.txt
     --model-dir /path/to/gguf \
     --python /path/to/python3
 ```
+
+> **提示**：`--vision-backend coreml` 将视觉编码器运行在 NPU 上，释放 GPU 给 LLM/TTS 使用。默认值为 `metal`（GPU）。建议在你的硬件上分别测试两种方案，选择延迟更低的。
 
 </details>
 
