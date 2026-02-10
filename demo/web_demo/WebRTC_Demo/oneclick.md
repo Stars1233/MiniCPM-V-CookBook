@@ -16,6 +16,8 @@ One script to download, build, and run the entire MiniCPM-o WebRTC demo stack **
 
 ```bash
 # Start all services (auto-downloads everything on first run)
+bash oneclick.sh start
+# Or specify Python path if needed
 PYTHON_CMD=/path/to/python bash oneclick.sh start
 
 # Check service status
@@ -30,6 +32,8 @@ bash oneclick.sh logs backend    # backend only
 bash oneclick.sh stop
 
 # Restart (stop + start)
+bash oneclick.sh restart
+# Or specify Python path if needed
 PYTHON_CMD=/path/to/python bash oneclick.sh restart
 
 # Pull latest code + auto-rebuild
@@ -140,6 +144,7 @@ All variables have sensible defaults. Override as needed:
 |----------|---------|-------------|
 | `LLAMACPP_ROOT` | `$SCRIPT_DIR/llama.cpp-omni` | llama.cpp-omni source directory |
 | `MODEL_DIR` | `$SCRIPT_DIR/models/openbmb/MiniCPM-o-4_5-gguf` | GGUF model directory |
+| `LLM_QUANT` | `Q4_K_M` | LLM quantization to download: `Q4_0`, `Q4_1`, `Q4_K_M`, `Q4_K_S`, `Q5_0`, `Q5_1`, `Q5_K_M`, `Q5_K_S`, `Q6_K`, `Q8_0`, or `F16` |
 | `CPP_MODE` | `duplex` | Inference mode: `duplex` (full-duplex) or `simplex` |
 | `VISION_BACKEND` | `coreml` (macOS) / `""` (Linux) | Vision encoder: `metal`, `coreml`, or `""` (default) |
 | `N_GPU_LAYERS` | `99` | Number of LLM layers to offload to GPU |
@@ -184,17 +189,26 @@ All variables have sensible defaults. Override as needed:
 ### First Run on a New Server
 
 ```bash
-# Everything is automatic — downloads, builds, and starts
+# Use default Python (searches for 'python' in PATH)
+bash oneclick.sh start
+
+# Or specify custom Python path (e.g., conda environment)
 PYTHON_CMD=/path/to/conda/envs/py311/bin/python bash oneclick.sh start
 ```
+
+> **Note:** If `python` command is not in your PATH, you must specify `PYTHON_CMD`.
 
 ### Duplex / Simplex Mode
 
 ```bash
 # Duplex (default) — speak and listen simultaneously, natural conversation
+bash oneclick.sh start
+# Or with custom Python
 PYTHON_CMD=/path/to/python CPP_MODE=duplex bash oneclick.sh start
 
 # Simplex — turn-based, one speaks at a time
+CPP_MODE=simplex bash oneclick.sh start
+# Or with custom Python
 PYTHON_CMD=/path/to/python CPP_MODE=simplex bash oneclick.sh start
 ```
 
@@ -203,21 +217,53 @@ PYTHON_CMD=/path/to/python CPP_MODE=simplex bash oneclick.sh start
 GPU memory is tight. Use Metal backend and offload Token2Wav to CPU:
 
 ```bash
+# With default Python
+VISION_BACKEND=metal TOKEN2WAV_DEVICE=cpu bash oneclick.sh start
+
+# Or with custom Python
 PYTHON_CMD=/path/to/python \
   VISION_BACKEND=metal \
   TOKEN2WAV_DEVICE=cpu \
   bash oneclick.sh start
 ```
 
+### Choose LLM Quantization
+
+By default, `Q4_K_M` is downloaded (~5 GB). For better quality or smaller size:
+
+```bash
+# Higher quality (larger size)
+LLM_QUANT=Q5_K_M bash oneclick.sh start     # ~5.8 GB
+LLM_QUANT=Q8_0 bash oneclick.sh start       # ~8.7 GB
+LLM_QUANT=F16 bash oneclick.sh start        # ~16 GB
+
+# Smaller size (lower quality)
+LLM_QUANT=Q4_K_S bash oneclick.sh start     # ~4.8 GB
+LLM_QUANT=Q4_0 bash oneclick.sh start       # ~4.7 GB
+```
+
+> **Note:** Only the specified quantization is downloaded. Submodels (vision, audio, tts, token2wav) are always F16.
+> Total download: ~3.9 GB (submodels) + LLM quantization size = ~8.9 GB for Q4_K_M (vs. 79 GB full repo).
+
 ### Production Mode (Stable Frontend)
 
 ```bash
+FRONTEND_MODE=prod bash oneclick.sh start
+# Or with custom Python
 PYTHON_CMD=/path/to/python FRONTEND_MODE=prod bash oneclick.sh start
 ```
 
 ### Direct Connection (No China Mirrors)
 
 ```bash
+# With default Python
+GITHUB_PROXY="" \
+  HF_ENDPOINT="" \
+  NODE_MIRROR="" \
+  NPM_REGISTRY="" \
+  bash oneclick.sh start
+
+# Or with custom Python
 PYTHON_CMD=/path/to/python \
   GITHUB_PROXY="" \
   HF_ENDPOINT="" \
@@ -256,11 +302,11 @@ $SCRIPT_DIR/
 ├── llama.cpp-omni/                # C++ inference engine (auto-downloaded)
 │   └── build/bin/llama-server     # Compiled binary (auto-built)
 ├── models/openbmb/MiniCPM-o-4_5-gguf/  # GGUF models (auto-downloaded)
-│   ├── MiniCPM-o-4_5-Q4_K_M.gguf       # LLM (Q4_K quantized)
-│   ├── tts/                             # TTS model + projector
-│   ├── audio/                           # Audio processing model
-│   ├── vision/                          # Vision encoder (GGUF + CoreML)
-│   └── token2wav-gguf/                  # Token2Wav vocoder
+│   ├── MiniCPM-o-4_5-Q4_K_M.gguf       # LLM (selected quantization, default Q4_K_M)
+│   ├── tts/                             # TTS model + projector (F16)
+│   ├── audio/                           # Audio processing model (F16)
+│   ├── vision/                          # Vision encoder (F16 GGUF + CoreML)
+│   └── token2wav-gguf/                  # Token2Wav vocoder (5 files)
 ├── .pids/                         # PID files for service management
 ├── .logs/                         # Log files
 │   ├── livekit.log
