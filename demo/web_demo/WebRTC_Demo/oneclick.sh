@@ -15,7 +15,9 @@
 #   PYTHON_CMD       - Python interpreter path
 #   LLAMACPP_ROOT    - llama.cpp-omni source path (auto-downloads if missing)
 #   MODEL_DIR        - GGUF model directory (auto-downloads if missing)
-#   FRONTEND_MODE    - dev (development mode) or prod (production build)
+#   LLM_QUANT        - LLM quantization: Q4_K_M (default), Q5_K_M, F16, etc.
+#   CPP_MODE         - duplex (default) or simplex
+#   FRONTEND_MODE    - prod (default) or dev (Vite hot reload)
 #   GITHUB_PROXY     - GitHub download proxy
 #   HF_ENDPOINT      - HuggingFace mirror (e.g. https://hf-mirror.com)
 # ============================================================================
@@ -51,6 +53,9 @@ PIP_TRUSTED_HOSTS="--trusted-host pypi.org --trusted-host files.pythonhosted.org
 LLAMACPP_ROOT="${LLAMACPP_ROOT:-$SCRIPT_DIR/llama.cpp-omni}"
 # GGUF model directory
 MODEL_DIR="${MODEL_DIR:-$SCRIPT_DIR/models/openbmb/MiniCPM-o-4_5-gguf}"
+# LLM quantization variant (Q4_K_M recommended for most users, F16 for best quality)
+# Options: Q4_0, Q4_1, Q4_K_M, Q4_K_S, Q5_0, Q5_1, Q5_K_M, Q5_K_S, Q6_K, Q8_0, F16
+LLM_QUANT="${LLM_QUANT:-Q4_K_M}"
 # Inference mode: duplex (full-duplex) or simplex (half-duplex)
 CPP_MODE="${CPP_MODE:-duplex}"
 # Vision encoder backend (macOS only): metal (GPU) or coreml (ANE acceleration)
@@ -730,20 +735,51 @@ download_models() {
 
     info "Auto-downloading GGUF models..."
 
-    # Detect HuggingFace CLI (hf >= 0.34, huggingface-cli for older versions, or python -m)
+    # Detect or install HuggingFace CLI
     local hf_cli="" hf_dl_cmd=""
+    local python_bin_dir
+    python_bin_dir="$(dirname "$PYTHON_CMD")"
+
+    # Priority 1: Check if hf/huggingface-cli is now in PATH (including from python env)
+    # Temporarily add python bin dir to PATH so conda/venv CLIs are found
+    PATH="$python_bin_dir:$PATH"
     if command -v hf &>/dev/null; then
-        # New CLI: hf download <repo>
+        local hf_path
+        hf_path="$(command -v hf)"
         hf_cli="hf"
-        hf_dl_cmd="hf download"
+        hf_dl_cmd="$hf_path download"
+        info "Found hf CLI: $hf_path"
     elif command -v huggingface-cli &>/dev/null; then
-        # Old CLI: huggingface-cli download <repo>
+        local hfcli_path
+        hfcli_path="$(command -v huggingface-cli)"
         hf_cli="huggingface-cli"
-        hf_dl_cmd="huggingface-cli download"
+        hf_dl_cmd="$hfcli_path download"
+        info "Found huggingface-cli: $hfcli_path"
+    # Priority 2: Try python -m invocation if module is installed
     elif "$PYTHON_CMD" -c "import huggingface_hub" &>/dev/null; then
-        # huggingface_hub installed but CLI not in PATH
-        hf_cli="python -m"
-        hf_dl_cmd="$PYTHON_CMD -m huggingface_hub download"
+        hf_cli="python -m huggingface_hub.cli"
+        hf_dl_cmd="$PYTHON_CMD -m huggingface_hub.cli download"
+    # Priority 3: Not found, attempt to install
+    else
+        info "huggingface_hub not found, attempting auto-install..."
+        $PIP_CMD install -U huggingface_hub $PIP_TRUSTED_HOSTS --progress-bar on || {
+            warn "Failed to auto-install huggingface_hub"
+        }
+        # Re-detect after install
+        if command -v hf &>/dev/null; then
+            local hf_path
+            hf_path="$(command -v hf)"
+            hf_cli="hf"
+            hf_dl_cmd="$hf_path download"
+        elif command -v huggingface-cli &>/dev/null; then
+            local hfcli_path
+            hfcli_path="$(command -v huggingface-cli)"
+            hf_cli="huggingface-cli"
+            hf_dl_cmd="$hfcli_path download"
+        elif "$PYTHON_CMD" -c "import huggingface_hub" &>/dev/null; then
+            hf_cli="python -m huggingface_hub.cli"
+            hf_dl_cmd="$PYTHON_CMD -m huggingface_hub.cli download"
+        fi
     fi
 
     if [[ -n "$hf_cli" ]]; then
@@ -754,31 +790,92 @@ download_models() {
             info "Using HuggingFace mirror: $HF_ENDPOINT"
         fi
 
-        # Selective download for macOS (skip extra LLM quantizations, 15GB -> ~12GB)
-        local os_type
-        os_type="$(uname -s)"
-        if [[ "$os_type" == "Darwin" ]]; then
-            info "macOS detected: downloading essential files only (Q4_K_M LLM + all submodels)"
-            $hf_dl_cmd "$HF_MODEL_REPO" \
-                --local-dir "$MODEL_DIR" \
-                --include "MiniCPM-o-4_5-Q4_K_M.gguf" \
-                --include "vision/*" \
-                --include "audio/*" \
-                --include "tts/*" \
-                --include "token2wav-gguf/*" \
-                --include "README.md" \
-                --include ".gitattributes" || {
-                err "Model download failed"
-                return 1
-            }
-        else
-            # Linux: download all (user may want different quantizations)
-            $hf_dl_cmd "$HF_MODEL_REPO" \
-                --local-dir "$MODEL_DIR" || {
-                err "Model download failed"
-                return 1
+        # Note: hf CLI doesn't support multiple --include flags properly
+        # Use Python API for selective download (more reliable)
+
+        info "Downloading selected LLM (${LLM_QUANT}) + all submodels..."
+        info "Total size: ~8.9 GB (vs. 79 GB full repo)"
+
+        # Ensure huggingface_hub is installed for Python API
+        if ! "$PYTHON_CMD" -c "import huggingface_hub" &>/dev/null; then
+            info "Installing huggingface_hub for selective download..."
+            $PIP_CMD install -U huggingface_hub $PIP_TRUSTED_HOSTS --progress-bar on || {
+                warn "Failed to install huggingface_hub, falling back to CLI download"
+                $hf_dl_cmd "$HF_MODEL_REPO" --local-dir "$MODEL_DIR" || {
+                    err "Model download failed"
+                    return 1
+                }
+                ok "Model download complete: $MODEL_DIR"
+                return 0
             }
         fi
+
+        # Clean up any old temp scripts
+        rm -f /tmp/hf_selective_dl_*.py 2>/dev/null || true
+
+        # Create Python script for selective download
+        local py_script
+        py_script=$(mktemp /tmp/hf_selective_dl_XXXXXX)
+        mv "$py_script" "$py_script.py"
+        py_script="$py_script.py"
+
+        cat > "$py_script" <<'PYEOF'
+import sys
+import os
+from huggingface_hub import snapshot_download
+
+repo_id = sys.argv[1]
+local_dir = sys.argv[2]
+llm_quant = sys.argv[3]
+
+# Define patterns for selective download
+allow_patterns = [
+    f"MiniCPM-o-4_5-{llm_quant}.gguf",  # Selected LLM quantization
+    "vision/*",                          # Vision encoder (F16)
+    "audio/*",                           # Audio encoder (F16)
+    "tts/*",                             # TTS models (F16)
+    "token2wav-gguf/*",                  # Token2Wav models
+    "*.md",                              # Documentation
+    ".git*",                             # Git metadata
+]
+
+# Read HF_ENDPOINT from environment (for mirror support)
+endpoint = os.environ.get("HF_ENDPOINT", None)
+
+print(f"Downloading with patterns: {allow_patterns}")
+print(f"Repo: {repo_id} -> {local_dir}")
+if endpoint:
+    print(f"Using HuggingFace mirror: {endpoint}")
+
+try:
+    snapshot_download(
+        repo_id=repo_id,
+        local_dir=local_dir,
+        allow_patterns=allow_patterns,
+        local_dir_use_symlinks=False,
+        endpoint=endpoint,  # Support HF_ENDPOINT for mirrors
+    )
+    print(f"\nDownload complete: {local_dir}")
+except Exception as e:
+    print(f"Error: {e}", file=sys.stderr)
+    sys.exit(1)
+PYEOF
+
+        # Run Python script for selective download
+        "$PYTHON_CMD" "$py_script" "$HF_MODEL_REPO" "$MODEL_DIR" "$LLM_QUANT" || {
+            rm -f "$py_script"
+            warn "Selective download failed, falling back to full download..."
+            warn "You can manually download only needed files from: ${HF_ENDPOINT:-https://huggingface.co}/${HF_MODEL_REPO}"
+            echo ""
+            warn "Proceeding with full download in 5 seconds (Ctrl+C to abort)..."
+            sleep 5
+
+            $hf_dl_cmd "$HF_MODEL_REPO" --local-dir "$MODEL_DIR" || {
+                err "Model download failed"
+                return 1
+            }
+        }
+        rm -f "$py_script"
 
         ok "Model download complete: $MODEL_DIR"
         return 0

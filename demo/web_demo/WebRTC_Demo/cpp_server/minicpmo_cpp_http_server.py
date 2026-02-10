@@ -175,9 +175,10 @@ http_client: Optional[httpx.AsyncClient] = None
 
 # ====================== 显存监控配置 ======================
 GPU_MEMORY_THRESHOLD_MB = 2000  # 显存剩余低于此值时触发重启 (MB)
-# 🔧 [跨平台] macOS 使用统一内存，禁用 CUDA 显存检查
+# 🔧 [本地部署] 默认禁用显存检查和自动重启功能（生产环境可通过环境变量启用）
+# 设置 GPU_MEMORY_CHECK=1 启用显存监控和自动重启
 import platform
-GPU_CHECK_ENABLED = (platform.system() != "Darwin")  # macOS 禁用显存检查
+GPU_CHECK_ENABLED = os.environ.get("GPU_MEMORY_CHECK", "0") == "1"
 cpp_restart_lock = threading.Lock()  # 重启锁，防止并发重启
 cpp_restarting = False  # 🔧 [修复] 正在重启标志，防止重启期间接收新请求
 
@@ -767,6 +768,7 @@ async def lifespan(app: FastAPI):
     CPP_SERVER_PORT = app.state.port + 10000
     CPP_SERVER_URL = f"http://{CPP_SERVER_HOST}:{CPP_SERVER_PORT}"
     print(f"C++ 服务器端口: {CPP_SERVER_PORT} (Python 端口 {app.state.port} + 10000)", flush=True)
+    print(f"显存监控: {'启用' if GPU_CHECK_ENABLED else '禁用'} (设置 GPU_MEMORY_CHECK=1 启用)", flush=True)
     
     # 启动健康检查服务器
     health_server_thread = threading.Thread(
