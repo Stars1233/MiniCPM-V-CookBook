@@ -49,10 +49,10 @@ bash oneclick.sh download
 └──────────────────────────┬───────────────────────────────────────┘
                            │
                     preflight_check()
-                    ┌──────┴──────┐
+                    ┌──────┴────-──┐
                     │ Auto-download│  (if missing)
                     │ & auto-build │
-                    └──────┬──────┘
+                    └──────┬──-────┘
                            │
          ┌─────────────────┼─────────────────┐
          ▼                 ▼                 ▼
@@ -60,7 +60,7 @@ bash oneclick.sh download
   (sparse clone)     (git clone +       (huggingface-cli
                       cmake build)       download)
                            │
-         ┌─────────────────┼─────────────────────────┐
+         ┌─────────────────┼──────────────────────-───┐
          │                 │                          │
          ▼                 ▼                          ▼
   [1/4] LiveKit     [2/4] Backend              [3/4] C++ Inference
@@ -69,7 +69,7 @@ bash oneclick.sh download
          │                 │                          │
          │                 │                          │
          └────────┬────────┘                          │
-                  │    token auth                      │
+                  │    token auth                     │
                   │◄──────────────────────────────────┘
                   │    register as inference service
                   │
