@@ -86,7 +86,7 @@ LIVEKIT_API_SECRET="secretsecretsecretsecretsecretsecret"
 # ======================== Source/Model Repository URLs (overridable via env vars) ========================
 # Git repository and branch containing WebRTC_Demo
 COOKBOOK_REPO="${COOKBOOK_REPO:-https://github.com/OpenSQZ/MiniCPM-V-CookBook.git}"
-COOKBOOK_BRANCH="${COOKBOOK_BRANCH:-webrtc-demo}"
+COOKBOOK_BRANCH="${COOKBOOK_BRANCH:-main}"
 # llama.cpp-omni Git repository
 LLAMACPP_REPO="${LLAMACPP_REPO:-https://github.com/tc-mb/llama.cpp-omni.git}"
 # HuggingFace model repository (GGUF format)
