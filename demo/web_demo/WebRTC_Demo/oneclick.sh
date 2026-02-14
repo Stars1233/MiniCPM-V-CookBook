@@ -106,14 +106,19 @@ NODE_MIRROR="${NODE_MIRROR:-https://npmmirror.com/mirrors/node}"
 NPM_REGISTRY="${NPM_REGISTRY:-https://registry.npmmirror.com}"
 
 # ======================== Ports (overridable via env vars) ========================
+# Set AUTO_PORT=1 to automatically find available ports if defaults are in use
+AUTO_PORT="${AUTO_PORT:-1}"
+
+# Default ports (will be auto-adjusted if AUTO_PORT=1 and port is in use)
 LIVEKIT_PORT="${LIVEKIT_PORT:-7880}"
 BACKEND_PORT="${BACKEND_PORT:-8021}"
 FRONTEND_PORT="${FRONTEND_PORT:-8088}"
-# Frontend mode: prod=built static server (faster and more stable)  dev=Vite dev server (hot reload)
-FRONTEND_MODE="${FRONTEND_MODE:-prod}"
 CPP_SERVER_PORT="${CPP_SERVER_PORT:-9060}"
 CPP_HEALTH_PORT=$((CPP_SERVER_PORT + 1))
 CPP_LLAMA_PORT=$((CPP_SERVER_PORT + 10000))
+
+# Frontend mode: prod=built static server (faster and more stable)  dev=Vite dev server (hot reload)
+FRONTEND_MODE="${FRONTEND_MODE:-prod}"
 
 # ======================== Color Output ========================
 RED='\033[0;31m'
@@ -148,31 +153,46 @@ get_local_ip() {
 
 check_port() {
     local port=$1
-    # Method 1: lsof (macOS and most Linux)
-    if command -v lsof &>/dev/null && lsof -i :"$port" &>/dev/null; then
-        return 0
+    # Method 1: Direct connection attempt (most reliable, no root needed)
+    if (echo >/dev/tcp/127.0.0.1/"$port") 2>/dev/null; then
+        return 0  # port in use
     fi
-    # Method 2: ss (modern Linux)
-    if command -v ss &>/dev/null && ss -tlnp 2>/dev/null | grep -q ":${port} "; then
-        return 0
-    fi
-    # Method 3: netstat (older Linux)
-    if command -v netstat &>/dev/null && netstat -tlnp 2>/dev/null | grep -q ":${port} "; then
-        return 0
-    fi
-    # Method 4: /proc/net/tcp (Linux kernel, no external tools needed)
+    # Method 2: /proc/net/tcp (Linux kernel, no external tools or root needed)
     if [[ -f /proc/net/tcp ]]; then
         local hex_port
         hex_port=$(printf '%04X' "$port")
         if awk -v hp="$hex_port" '$2 ~ ":"hp"$" && $4 == "0A" {found=1; exit} END {exit !found}' /proc/net/tcp 2>/dev/null; then
-            return 0
+            return 0  # port in use
         fi
     fi
-    # Method 5: direct connection attempt (bash builtin)
-    if (echo >/dev/tcp/127.0.0.1/"$port") 2>/dev/null; then
-        return 0
+    # Method 3: lsof (macOS and most Linux, may need sudo for all processes)
+    if command -v lsof &>/dev/null && lsof -i :"$port" &>/dev/null; then
+        return 0  # port in use
+    fi
+    # Method 4: ss (modern Linux, -p needs root but -tln works without)
+    if command -v ss &>/dev/null && ss -tln 2>/dev/null | grep -q ":${port} "; then
+        return 0  # port in use
+    fi
+    # Method 5: netstat (cross-platform: -an for macOS, -tln for Linux)
+    if command -v netstat &>/dev/null; then
+        # macOS netstat doesn't support -tln, use -an instead
+        if [[ "$(uname)" == "Darwin" ]]; then
+            if netstat -an 2>/dev/null | grep -q "\.${port} .*LISTEN"; then
+                return 0  # port in use
+            fi
+        else
+            # Linux netstat: -tln works without root
+            if netstat -tln 2>/dev/null | grep -q ":${port} "; then
+                return 0  # port in use
+            fi
+        fi
     fi
     return 1  # port free
+}
+
+is_port_in_use() {
+    # Alias for check_port (for clarity in auto_allocate_ports)
+    check_port "$1"
 }
 
 # Locate a tool by name, checking PATH and common sbin directories
@@ -368,6 +388,94 @@ is_running() {
         fi
     fi
     return 1
+}
+
+find_available_port() {
+    local start_port=$1
+    local max_attempts=${2:-100}
+
+    for ((i=0; i<max_attempts; i++)); do
+        local port=$((start_port + i))
+        if ! is_port_in_use "$port"; then
+            # Double-check by attempting to bind the port (catches sudo processes)
+            if command -v python3 &>/dev/null; then
+                if python3 -c "import socket; s=socket.socket(); s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1); s.bind(('127.0.0.1', $port)); s.close()" 2>/dev/null; then
+                    echo "$port"
+                    return 0
+                fi
+                # Port binding failed (likely in use by sudo process), try next
+            else
+                # No python3, trust the check_port result
+                echo "$port"
+                return 0
+            fi
+        fi
+    done
+
+    # If no port found in range, return the start port anyway
+    echo "$start_port"
+    return 1
+}
+
+auto_allocate_ports() {
+    # 自动分配可用端口（如果启用 AUTO_PORT=1）
+    if [[ "$AUTO_PORT" != "1" ]]; then
+        return 0
+    fi
+
+    info "Auto-allocating available ports (AUTO_PORT=1)..."
+
+    # LiveKit
+    if is_port_in_use "$LIVEKIT_PORT"; then
+        local new_port
+        new_port=$(find_available_port "$LIVEKIT_PORT")
+        if [[ "$new_port" != "$LIVEKIT_PORT" ]]; then
+            warn "Port $LIVEKIT_PORT in use, using $new_port for LiveKit"
+            LIVEKIT_PORT="$new_port"
+        fi
+    fi
+
+    # Backend
+    if is_port_in_use "$BACKEND_PORT"; then
+        local new_port
+        new_port=$(find_available_port "$BACKEND_PORT")
+        if [[ "$new_port" != "$BACKEND_PORT" ]]; then
+            warn "Port $BACKEND_PORT in use, using $new_port for Backend"
+            BACKEND_PORT="$new_port"
+        fi
+    fi
+
+    # Frontend
+    if is_port_in_use "$FRONTEND_PORT"; then
+        local new_port
+        new_port=$(find_available_port "$FRONTEND_PORT")
+        if [[ "$new_port" != "$FRONTEND_PORT" ]]; then
+            warn "Port $FRONTEND_PORT in use, using $new_port for Frontend"
+            FRONTEND_PORT="$new_port"
+        fi
+    fi
+
+    # C++ Server (also update derived ports)
+    if is_port_in_use "$CPP_SERVER_PORT"; then
+        local new_port
+        new_port=$(find_available_port "$CPP_SERVER_PORT")
+        if [[ "$new_port" != "$CPP_SERVER_PORT" ]]; then
+            warn "Port $CPP_SERVER_PORT in use, using $new_port for C++ Server"
+            CPP_SERVER_PORT="$new_port"
+            CPP_HEALTH_PORT=$((CPP_SERVER_PORT + 1))
+            CPP_LLAMA_PORT=$((CPP_SERVER_PORT + 10000))
+        fi
+    fi
+
+    if [[ "$AUTO_PORT" == "1" ]]; then
+        ok "Port allocation complete:"
+        echo "  LiveKit:     $LIVEKIT_PORT"
+        echo "  Backend:     $BACKEND_PORT"
+        echo "  Frontend:    $FRONTEND_PORT"
+        echo "  C++ Server:  $CPP_SERVER_PORT"
+        echo "  C++ Health:  $CPP_HEALTH_PORT"
+        echo "  C++ Llama:   $CPP_LLAMA_PORT"
+    fi
 }
 
 kill_by_pidfile() {
@@ -1081,6 +1189,20 @@ update_livekit_ip() {
     fi
 }
 
+update_livekit_port() {
+    if [[ ! -f "$LIVEKIT_CONFIG" ]]; then
+        return
+    fi
+    # Update port if different from LIVEKIT_PORT
+    local current_port
+    current_port=$(grep "^port:" "$LIVEKIT_CONFIG" | awk '{print $2}' || echo "7880")
+    if [[ "$current_port" != "$LIVEKIT_PORT" ]]; then
+        sed -i.bak "s/^port: .*/port: $LIVEKIT_PORT/" "$LIVEKIT_CONFIG"
+        rm -f "${LIVEKIT_CONFIG}.bak"
+        ok "Updated livekit.yaml port to $LIVEKIT_PORT (was: $current_port)"
+    fi
+}
+
 # ======================== Start LiveKit ========================
 
 start_livekit() {
@@ -1095,6 +1217,7 @@ start_livekit() {
     ensure_port_free "$LIVEKIT_PORT" "LiveKit" || return 1
 
     update_livekit_keys
+    update_livekit_port
     update_livekit_ip
 
     livekit-server --config "$LIVEKIT_CONFIG" \
@@ -1117,6 +1240,25 @@ start_backend() {
 
     ensure_port_free "$BACKEND_PORT" "Backend" || return 1
 
+    # Patch local.yaml to set the correct backend port
+    local backend_config="$PROJECT_DIR/omini_backend_code/code/config/local.yaml"
+    if [[ -f "$backend_config" ]]; then
+        # Check if port line exists and update it
+        if grep -q "^  port:" "$backend_config" 2>/dev/null; then
+            sed -i.bak "s/^  port:.*/  port: $BACKEND_PORT/" "$backend_config"
+            rm -f "${backend_config}.bak"
+            ok "Updated backend config port to $BACKEND_PORT"
+        else
+            # Port line is commented or missing, add it under server:
+            sed -i.bak "/^server:/a\\
+  port: $BACKEND_PORT" "$backend_config"
+            rm -f "${backend_config}.bak"
+            ok "Added backend config port: $BACKEND_PORT"
+        fi
+    else
+        warn "Backend config not found: $backend_config (port update skipped)"
+    fi
+
     # Check if backend dependencies are installed (check livekit module, a unique dependency)
     if ! $PYTHON_CMD -c "import livekit" 2>/dev/null; then
         info "Installing backend Python dependencies (first run requires download, please be patient)..."
@@ -1133,6 +1275,7 @@ start_backend() {
     (
         cd "$BACKEND_DIR"
         APP_ENV=local \
+        SERVER_PORT="$BACKEND_PORT" \
         LIVEKIT_URL="ws://localhost:$LIVEKIT_PORT" \
         LIVEKIT_API_KEY="$LIVEKIT_API_KEY" \
         LIVEKIT_API_SECRET="$LIVEKIT_API_SECRET" \
@@ -1394,6 +1537,9 @@ start_all() {
     echo ""
 
     mkdir -p "$PID_DIR" "$LOG_DIR"
+
+    # Auto-allocate available ports if AUTO_PORT=1
+    auto_allocate_ports
 
     preflight_check
     start_livekit

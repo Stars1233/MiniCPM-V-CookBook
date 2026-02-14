@@ -154,10 +154,13 @@ All variables have sensible defaults. Override as needed:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `AUTO_PORT` | `1` | **Enabled by default.** Auto-allocate available ports if defaults are in use (`1`=enable, `0`=disable). Uses dual-layer detection to reliably detect port conflicts even from `sudo` processes. |
 | `LIVEKIT_PORT` | `7880` | LiveKit server port |
 | `BACKEND_PORT` | `8021` | Backend API port |
 | `FRONTEND_PORT` | `8088` | Frontend HTTPS port |
 | `CPP_SERVER_PORT` | `9060` | C++ inference HTTP port (+1 for health, +10000 for llama-server) |
+
+> **Note:** With `AUTO_PORT=1` (default), the script automatically finds available ports if defaults are in use. All custom ports are fully respected — configuration files (`livekit.yaml`, `local.yaml`) are dynamically patched to ensure services use your specified ports.
 
 ### Frontend
 
@@ -320,17 +323,91 @@ $SCRIPT_DIR/
 
 ### Port Already in Use
 
-The script auto-kills processes occupying ports on restart. If auto-kill fails:
+**Default behavior (AUTO_PORT=1):**
+
+The script **automatically finds available ports** if defaults are in use:
+
+```bash
+# Simply start (auto-allocation enabled by default)
+bash oneclick.sh start
+```
+
+Port detection works reliably even for processes running with `sudo`/elevated privileges.
+
+**To disable auto-allocation** (use fixed ports only):
+
+```bash
+AUTO_PORT=0 bash oneclick.sh start
+```
+
+**Manual port specification:**
+
+```bash
+BACKEND_PORT=8086 bash oneclick.sh start
+```
+
+Custom ports are fully supported and dynamically applied to all configuration files.
+
+**Manual kill (if needed):**
 
 ```bash
 # Find what's using the port
-ss -tlnp | grep :8021
-# Or on macOS
-lsof -i :8021
+lsof -i :8021        # macOS
+ss -tlnp | grep :8021  # Linux
+netstat -an | grep 8021  # Cross-platform
 
 # Kill it manually
 kill <PID>
 ```
+
+### Backend Not Starting on Custom Port
+
+If you set `BACKEND_PORT` but the backend still uses 8021:
+
+1. **Check the log for actual listening port:**
+   ```bash
+   grep "监听地址" .logs/backend.log
+   # Should show: 监听地址: 0.0.0.0:8086
+   ```
+
+2. **Verify config patching:**
+   ```bash
+   grep "port:" WebRTC_Demo/omini_backend_code/code/config/local.yaml
+   # Should show: port: 8086
+   ```
+
+3. **The script auto-patches configs** — no manual editing needed! If it still fails, check for file permission issues.
+
+### Low GPU Utilization (High CPU, Low GPU)
+
+If `llama-server` shows high CPU usage but low GPU:
+
+1. **Verify CUDA/Metal acceleration:**
+   ```bash
+   # Check build log (shown during build)
+   grep -i "CUDA\\|Metal" .logs/cpp_server.log
+   ```
+
+2. **Increase performance parameters:**
+   ```bash
+   BATCH_SIZE=4096 \
+   UBATCH_SIZE=1024 \
+   PARALLEL=8 \
+   FLASH_ATTN=1 \
+   bash oneclick.sh restart
+   ```
+
+3. **On Linux with NVIDIA GPU:**
+   - Ensure `N_GPU_LAYERS=99` (default, offloads all layers)
+   - Check CUDA drivers: `nvidia-smi`
+   - Verify `llama-server` is linked with CUDA: 
+     ```bash
+     ldd llama.cpp-omni/build/bin/llama-server | grep cuda
+     ```
+
+4. **On macOS with Apple Silicon:**
+   - Use `VISION_BACKEND=metal` for GPU acceleration
+   - Metal is automatically enabled for LLM inference
 
 ### 401 Unauthorized (LiveKit)
 
@@ -345,3 +422,60 @@ Reduce GPU usage:
 ```bash
 TOKEN2WAV_DEVICE=cpu VISION_BACKEND=metal bash oneclick.sh restart
 ```
+
+### C++ Inference Service Keeps Restarting
+
+If you see repeated restarts in the logs:
+
+1. **Check if GPU memory check is enabled:**
+   ```bash
+   grep "GPU_CHECK_ENABLED" .logs/cpp_server.log
+   ```
+
+2. **Disable for local deployment (recommended):**
+   ```bash
+   GPU_MEMORY_CHECK=0 bash oneclick.sh restart
+   ```
+
+> **Note:** GPU memory check is **disabled by default** (`GPU_MEMORY_CHECK=0`). Only enable for production/cloud deployments.
+
+### Model Download Stuck or Incomplete
+
+If model download appears stuck or only downloads partial files:
+
+1. **The script now uses selective download** — only necessary files are downloaded (~8.9 GB vs. 79 GB full repo)
+
+2. **Check download progress:**
+   - Selective download uses `huggingface_hub` Python API (shows progress bars)
+   - If it falls back to `hf` CLI, you'll see a warning
+
+3. **Verify downloaded files:**
+   ```bash
+   ls -lh models/openbmb/MiniCPM-o-4_5-gguf/
+   # Should show:
+   # - MiniCPM-o-4_5-Q4_K_M.gguf (or your selected quantization)
+   # - vision/, audio/, tts/, token2wav-gguf/ directories
+   ```
+
+4. **Force re-download:**
+   ```bash
+   rm -rf models/openbmb/MiniCPM-o-4_5-gguf
+   bash oneclick.sh download
+   ```
+
+### C++ Server Not Registering with Backend
+
+If C++ inference service starts but doesn't appear as "available":
+
+1. **Check reconnect mechanism:**
+   ```bash
+   grep "reconnect\\|register" .logs/cpp_server.log
+   ```
+
+2. **Verify backend connectivity:**
+   ```bash
+   curl http://localhost:8021/health
+   # Should return: {"status":"healthy","service":"minicpmo-backend"}
+   ```
+
+3. **Auto-reconnect is enabled by default** — if registration fails, it will retry every 60s.
